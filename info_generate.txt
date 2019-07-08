@@ -1,0 +1,117 @@
+
+
+
+text length: 300000
+lstm: 2 layers with 1024
+K: 100
+dropout: 0.7
+validation set: 4%
+
+Setup torch-rnn
+virtualenv --python=/usr/bin/python2.7 .env
+pip install -r requirements.txt
+
+
+Twain,_Mark Shakespeare,_William Dickens,_Charles Fenn,_George_Manville Doyle,_Arthur_Conan Stevenson,_Robert_Louis Kingston,_William_Henry_Giles Trollope,_Anthony Stratemeyer,_Edward Howells,_William_Dean
+
+# First get all gutenberg data
+
+nohup python get_data.py -q &
+
+# Then parse texts from selected authors (authors.txt)
+
+mkdir saved_texts
+mkdir to_test
+conda activate language_model
+python3 generate_corpus.py authors.txt gutenberg/metadata/metadata.csv gutenberg/data/raw/ ./saved_texts ./to_test
+
+mv saved_texts/ torch-rnn/
+
+
+
+# Preprocess text for torch-rnn
+cd torch-rnn
+mkdir models
+mkdir cv
+
+source .env/bin/activate
+
+listVar="Twain,_Mark Shakespeare,_William Dickens,_Charles Fenn,_George_Manville Doyle,_Arthur_Conan Stevenson,_Robert_Louis Kingston,_William_Henry_Giles Trollope,_Anthony Stratemeyer,_Edward Howells,_William_Dean"
+for i in $listVar; do
+    echo "${i}_all.txt"
+    python2 scripts/preprocess.py --input_txt "saved_texts/${i}_all.txt" --output_h5 "models/${i}.h5" --output_json "models/${i}.json"
+done
+
+
+python scripts/preprocess.py --input_txt saved_texts/Twain,_Mark_all.txt --output_h5 models/Twain,_Mark.h5 --output_json models/Twain,_Mark.json
+
+# Train model
+
+listVar="Twain,_Mark Shakespeare,_William Dickens,_Charles Fenn,_George_Manville Doyle,_Arthur_Conan Stevenson,_Robert_Louis Kingston,_William_Henry_Giles Trollope,_Anthony Stratemeyer,_Edward Howells,_William_Dean"
+for i in $listVar; do
+    echo "${i}_all.txt"
+    th train.lua -input_h5 "models/${i}.h5" \
+    -input_json "models/${i}.json" \
+    -model_type lstm \
+    -num_layers 2 \
+    -rnn_size 1024 \
+    -max_epochs 10 \
+    -dropout 0.7 \
+    -print_every 1000 \
+    -checkpoint_name "cv/chk_${i}"
+done
+
+
+th train.lua -input_h5 modelss/Twain,_Mark.h5 \
+    -input_json modelss/Twain,_Mark.json \
+    -model_type lstm \
+    -num_layers 2 \
+    -rnn_size 1024 \
+    -dropout 0.7 \
+    -gpu -1 \
+    -checkpoint_name 'cvv/chk_Twain,_Mark'
+
+
+
+th sample.lua -checkpoint cv/checkpoint_10000.t7 -length 300000
+
+
+# Generate Texts
+
+listVar="Twain,_Mark Shakespeare,_William Dickens,_Charles Fenn,_George_Manville Doyle,_Arthur_Conan"
+for i in $listVar; do
+    max=-1
+    for file in cv/chk_${i}_*.t7
+    do
+      num=${file##*_}
+      num=${num%.*}
+      [[ $num -gt $max ]] && max=$num
+    done
+    echo "${i}"
+    echo "chk_${i}_${max}.t7"
+    for example in $(seq 1 10)
+    do
+        th sample.lua \
+        -checkpoint cv/chk_${i}_${max}.t7 \
+        -gpu -1 \
+        -length 350000 \
+        -sample 1 > gen/${i}_${example}.txt
+    done
+done
+
+
+for trial in {1..30}
+do
+    echo ${trial}
+done
+
+
+max=-1
+for file in chk_Doyle,_Arthur_Conan_*.t7
+do
+  num=${file##*_}
+  num=${num%.*}
+  [[ $num -gt $max ]] && max=$num
+done
+echo "max is: $max"
+
