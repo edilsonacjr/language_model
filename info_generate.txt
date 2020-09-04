@@ -78,7 +78,9 @@ th sample.lua -checkpoint cv/checkpoint_10000.t7 -length 300000
 
 # Generate Texts
 
-listVar="Twain,_Mark Shakespeare,_William Dickens,_Charles Fenn,_George_Manville Doyle,_Arthur_Conan"
+mkdir gen
+
+listVar="Twain,_Mark Shakespeare,_William Dickens,_Charles Fenn,_George_Manville Doyle,_Arthur_Conan Stevenson,_Robert_Louis Kingston,_William_Henry_Giles Trollope,_Anthony Stratemeyer,_Edward Howells,_William_Dean"
 for i in $listVar; do
     max=-1
     for file in cv/chk_${i}_*.t7
@@ -89,29 +91,12 @@ for i in $listVar; do
     done
     echo "${i}"
     echo "chk_${i}_${max}.t7"
-    for example in $(seq 1 10)
+    for example in $(seq 1 2)
     do
         th sample.lua \
         -checkpoint cv/chk_${i}_${max}.t7 \
-        -gpu -1 \
+        -gpu 0 \
         -length 350000 \
         -sample 1 > gen/${i}_${example}.txt
     done
-done
-
-
-for trial in {1..30}
-do
-    echo ${trial}
-done
-
-
-max=-1
-for file in chk_Doyle,_Arthur_Conan_*.t7
-do
-  num=${file##*_}
-  num=${num%.*}
-  [[ $num -gt $max ]] && max=$num
-done
-echo "max is: $max"
-
+done &
